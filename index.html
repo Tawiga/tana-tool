@@ -718,7 +718,9 @@ textarea{width:100%;min-height:150px;font:inherit;font-size:14px;color:var(--ink
     var btn=$('dl'); btn.disabled=true; say('パワポをつくっています…');
     var name='棚の伸びしろ_'+(d.category||'カテゴリ').replace(/[\\\/:*?"<>|\s]/g,'')+'.pptx';
     try{
-      build(d).write({outputType:'blob'}).then(function(blob){
+      build(d).write({outputType:'blob'}).then(function(raw){
+        // iPhone の Safari は zip 形式のファイルを自動で展開してしまうため、パワポの種類を明示する
+        var blob=new Blob([raw],{type:'application/vnd.openxmlformats-officedocument.presentationml.presentation'});
         if(window.__saveFile){ return window.__saveFile(blob,name); }
         saveBlob(blob,name);
       }).then(function(){ say('できました。パワポに、企業名・原価・売価を書き足してください。'); })
