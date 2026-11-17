@@ -195,19 +195,20 @@ textarea{width:100%;min-height:150px;font:inherit;font-size:14px;color:var(--ink
 
   <section>
     <h2><span class="step">5</span>棚のゾーニング <span class="opt">シートの5（作らなくても進めます）</span></h2>
-    <p class="hint">棚の分け方を、図にします。ゾーン名を選んでから、マスを<b>なぞって</b>塗ってください。1マスが、棚1本の1段です。ゾーン名には、3の小カテゴリが入っています。</p>
+    <p class="hint">棚の分け方を、図にします。小カテゴリ名を選んでから、マスを<b>なぞって</b>塗ってください。1マスが、棚1本の1段です。選べる名前には、3の小カテゴリが入っています。</p>
     <div class="two">
       <div><label class="f" for="zcols">棚の本数</label><input type="number" id="zcols" inputmode="numeric" min="1" max="12" step="1" value="5"></div>
       <div><label class="f" for="zrows">段数</label><input type="number" id="zrows" inputmode="numeric" min="1" max="10" step="1" value="6"></div>
     </div>
-    <div class="chips" id="chips" role="radiogroup" aria-label="塗るゾーン"></div>
-    <div class="zadd"><input type="text" id="zname" placeholder="ゾーン名を足す（例：高価格、企画枠）" autocomplete="off" aria-label="足すゾーン名"><button type="button" id="zaddBtn">足す</button></div>
+    <div class="chips" id="chips" role="radiogroup" aria-label="塗る小カテゴリ"></div>
+    <div class="zadd"><input type="text" id="zname" placeholder="小カテゴリ名を足す（例：高価格、企画枠）" autocomplete="off" aria-label="足す小カテゴリ名"><button type="button" id="zaddBtn">足す</button></div>
     <div class="ztitle"><span>いまの棚</span><span class="zbtns"><button type="button" id="zundoB">1つ戻す</button><button type="button" id="zclearB">全部消す</button></span></div>
     <div class="zhead" id="zheadB"></div>
     <div class="zwrap"><div class="zrows" id="zrowsB"></div><div class="zgrid" id="zgridB" aria-label="いまの棚のゾーニング"></div></div>
     <label class="check"><input type="checkbox" id="zafterOn">提案後の棚もつくる（いまの棚をコピーして直す）</label>
     <div id="zafterWrap" class="hide">
       <div class="ztitle"><span>提案後の棚</span><span class="zbtns"><button type="button" id="zundoA">1つ戻す</button><button type="button" id="zcopy">いまの棚をコピーし直す</button></span></div>
+      <div class="chips" id="chipsA" role="radiogroup" aria-label="塗る小カテゴリ（提案後の棚）"></div>
       <div class="zhead" id="zheadA"></div>
       <div class="zwrap"><div class="zrows" id="zrowsA"></div><div class="zgrid" id="zgridA" aria-label="提案後の棚のゾーニング"></div></div>
     </div>
@@ -406,20 +407,24 @@ textarea{width:100%;min-height:150px;font:inherit;font-size:14px;color:var(--ink
   /* ---------- ゾーニングの画面 ---------- */
   function brush(){ if(Z.brush!==null) return Z.brush; var n=zoneNames(); return n.length?n[0]:''; }
   function renderChips(){
-    var box=$('chips'), names=zoneNames(); box.textContent='';
+    var names=zoneNames();
     if(Z.brush!==null && Z.brush!=='' && names.indexOf(Z.brush)<0) Z.brush=null;
     var cur=brush();
-    names.forEach(function(n){
-      var b=el('button',{type:'button',class:'chip'+(cur===n?' on':''),role:'radio','aria-checked':cur===n?'true':'false',text:n});
-      b.style.background=zcolor(n); b.setAttribute('data-zone',n); box.appendChild(b);
+    /* 「いまの棚」の上と「提案後の棚」の上の両方に、同じ選択肢を出す（どちらで選んでも同じ筆になる） */
+    ['chips','chipsA'].forEach(function(id){
+      var box=$(id); if(!box) return; box.textContent='';
+      names.forEach(function(n){
+        var b=el('button',{type:'button',class:'chip'+(cur===n?' on':''),role:'radio','aria-checked':cur===n?'true':'false',text:n});
+        b.style.background=zcolor(n); b.setAttribute('data-zone',n); box.appendChild(b);
+      });
+      var e=el('button',{type:'button',class:'chip erase'+(cur===''?' on':''),role:'radio','aria-checked':cur===''?'true':'false',text:'消しゴム'});
+      e.setAttribute('data-zone',''); box.appendChild(e);
     });
-    var e=el('button',{type:'button',class:'chip erase'+(cur===''?' on':''),role:'radio','aria-checked':cur===''?'true':'false',text:'消しゴム'});
-    e.setAttribute('data-zone',''); box.appendChild(e);
   }
   function pickChip(ev){
-    var t=ev.target;
-    while(t && t!==$('chips') && !(t.getAttribute && t.getAttribute('data-zone')!==null)) t=t.parentNode;
-    if(!t || t===$('chips')) return;
+    var t=ev.target, root=ev.currentTarget;
+    while(t && t!==root && !(t.getAttribute && t.getAttribute('data-zone')!==null)) t=t.parentNode;
+    if(!t || t===root) return;
     var n=t.getAttribute('data-zone');
     if(Z.brush===n) return;
     Z.brush=n; renderChips();
@@ -805,8 +810,7 @@ textarea{width:100%;min-height:150px;font:inherit;font-size:14px;color:var(--ink
     if(zoneNames().indexOf(n)<0) Z.custom.push(n);
     Z.brush=n; $('zname').value=''; renderChips();
   }
-  $('chips').addEventListener('pointerdown',pickChip);
-  $('chips').addEventListener('click',pickChip);
+  ['chips','chipsA'].forEach(function(id){ $(id).addEventListener('pointerdown',pickChip); $(id).addEventListener('click',pickChip); });
   $('zaddBtn').addEventListener('click',addZone);
   $('zname').addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); addZone(); } });
   $('zclearB').addEventListener('click',function(){ snap('B'); Z.before={}; renderZoning(false); render(); });
@@ -825,12 +829,21 @@ textarea{width:100%;min-height:150px;font:inherit;font-size:14px;color:var(--ink
     $('mktUp').value='5袋、高額個食'; $('mktDown').value='2・3食';
     [['5袋',16,61.1],['複食（2〜3食）',14,22.2],['個食',5,9.2],['高額個食',3,5.1],['その他',2,2.4]].forEach(function(r){addCat(r[0],r[1],r[2])});
     [['A社',18],['B社',12],['その他',10]].forEach(function(r){addMk(r[0],r[1])});
-    Z.cols=5; Z.rows=6; Z.before={}; Z.custom=[]; $('zcols').value=5; $('zrows').value=6;
+    Z.cols=4; Z.rows=6; Z.before={}; Z.custom=[]; H.B=[]; H.A=[]; $('zcols').value=4; $('zrows').value=6;
     var fill=function(m,c,a,b,n){ for(var r=a;r<=b;r++) m[c+','+r]=n; };
-    fill(Z.before,0,0,5,'5袋'); fill(Z.before,1,0,5,'5袋'); fill(Z.before,2,0,5,'複食（2〜3食）');
-    fill(Z.before,3,0,2,'複食（2〜3食）'); fill(Z.before,3,3,5,'個食');
-    fill(Z.before,4,0,1,'高額個食'); fill(Z.before,4,2,3,'個食'); fill(Z.before,4,4,5,'その他');
-    copyAfter(); fill(Z.after,2,0,2,'5袋'); $('zafterOn').checked=true;
+    var F='複食（2〜3食）';
+    /* いまの棚：1段目＝その他×3・複食／2段目＝個食・高額個食・高額個食・複食／3〜6段目＝5袋×3・複食 */
+    fill(Z.before,0,0,0,'その他'); fill(Z.before,0,1,1,'個食'); fill(Z.before,0,2,5,'5袋');
+    fill(Z.before,1,0,0,'その他'); fill(Z.before,1,1,1,'高額個食'); fill(Z.before,1,2,5,'5袋');
+    fill(Z.before,2,0,0,'その他'); fill(Z.before,2,1,1,'高額個食'); fill(Z.before,2,2,5,'5袋');
+    fill(Z.before,3,0,5,F);
+    /* 提案後：5袋を広げる（12→14段）・複食を半分に（6→3段）・高額個食をアイラインに（2→3段）・個食は増やさない */
+    Z.after={};
+    fill(Z.after,0,0,0,'個食'); fill(Z.after,0,1,1,'高額個食'); fill(Z.after,0,2,5,'5袋');
+    fill(Z.after,1,0,0,'その他'); fill(Z.after,1,1,1,'高額個食'); fill(Z.after,1,2,5,'5袋');
+    fill(Z.after,2,0,0,'その他'); fill(Z.after,2,1,1,'高額個食'); fill(Z.after,2,2,5,'5袋');
+    fill(Z.after,3,0,0,'その他'); fill(Z.after,3,1,3,F); fill(Z.after,3,4,5,'5袋');
+    $('zafterOn').checked=true;
     Z.brush=null; renderZoning(true);
     $('sig1').checked=true; $('sig2').checked=false; $('sig3').checked=false; $('sigText').value='';
     $('one').value='5袋を2SKU増やすと、節約志向のお客さまの受け皿ができて、棚全体の売上が上がる';
