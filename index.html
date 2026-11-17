@@ -169,7 +169,7 @@ textarea{width:100%;min-height:150px;font:inherit;font-size:14px;color:var(--ink
     <label class="f" for="mktUp">このカテゴリで、伸びている分類</label>
     <input type="text" id="mktUp" placeholder="例：5袋、高額個食" autocomplete="off">
     <label class="f" for="mktDown">このカテゴリで、落ちている分類</label>
-    <input type="text" id="mktDown" placeholder="例：2・3食" autocomplete="off">
+    <input type="text" id="mktDown" placeholder="例：複食（2〜3食）" autocomplete="off">
   </section>
 
   <section>
@@ -360,7 +360,7 @@ textarea{width:100%;min-height:150px;font:inherit;font-size:14px;color:var(--ink
     var cats=[], mks=[];
     Array.prototype.forEach.call(catsEl.querySelectorAll('.row.data'),function(r){
       var i=r.querySelectorAll('input'); var name=i[0].value.trim(), sku=num(i[1].value), mkt=num(i[2].value);
-      if(name && sku!=null && sku>0) cats.push({name:name,sku:sku,mkt:mkt});
+      if(name && sku!=null && sku>0) cats.push({name:name,sku:sku,mkt:mkt,haveIn:num(r.querySelector('.have').value)});
     });
     Array.prototype.forEach.call(mkEl.querySelectorAll('.row.data'),function(r){
       var i=r.querySelectorAll('input'); var name=i[0].value.trim(), sku=num(i[1].value);
@@ -368,6 +368,12 @@ textarea{width:100%;min-height:150px;font:inherit;font-size:14px;color:var(--ink
     });
     var total=cats.reduce(function(a,c){return a+c.sku},0);
     cats.forEach(function(c){ c.share=total?c.sku/total*100:0; c.diff=(c.mkt==null)?null:c.share-c.mkt; });
+    /* 段数：ゾーニングを塗っていれば塗った段数、塗っていなければ手で入れた段数 */
+    var usedZ=zoningUsed(), zcnt={}, rowTotal=0;
+    if(usedZ){ for(var zk in Z.before){ zcnt[Z.before[zk]]=(zcnt[Z.before[zk]]||0)+1; } rowTotal=Z.cols*Z.rows; cats.forEach(function(c){ c.have=zcnt[c.name]||0; }); }
+    else cats.forEach(function(c){ c.have=c.haveIn; if(c.have!=null) rowTotal+=c.have; });
+    cats.forEach(function(c){ c.need=(c.mkt!=null && rowTotal>0)?c.mkt/100*rowTotal:null; c.rdiff=(c.need!=null && c.have!=null)?c.have-c.need:null; });
+    var hasRows=cats.some(function(c){return c.rdiff!=null});
     var mtotal=mks.reduce(function(a,c){return a+c.sku},0);
     mks.forEach(function(m){ m.share=mtotal?m.sku/mtotal*100:0; });
     var withM=cats.filter(function(c){return c.diff!=null});
@@ -380,6 +386,7 @@ textarea{width:100%;min-height:150px;font:inherit;font-size:14px;color:var(--ink
     return {category:$('category').value.trim(), cats:cats, mks:mks, total:total, mtotal:mtotal, hasMkt:withM.length>0, allMkt:withM.length===cats.length&&cats.length>0,
             mktSum:mktSum, over:over, under:under, top:top, target:$('target').value, mention:$('mention').value,
             mkt1:$('mkt1').value.trim(), mktUp:$('mktUp').value.trim(), mktDown:$('mktDown').value.trim(), one:$('one').value.trim(), sigs:sigs,
+            rowTotal:rowTotal, hasRows:hasRows,
             zoning:zoningUsed()?{cols:Z.cols,rows:Z.rows,before:Z.before,after:Z.after}:null};
   }
 
@@ -652,23 +659,38 @@ textarea{width:100%;min-height:150px;font:inherit;font-size:14px;color:var(--ink
 
     /* 1 棚の読み取り */
     var s1=base(pptx,'棚の読み取り（'+cat+'）',++no,total);
-    var hdr=function(tx){return {text:tx,options:{bold:true,color:WHITE,fill:{color:NAVY},fontFace:FONT,fontSize:11.5,align:'center'}}};
-    var cell=function(tx,o){var op={fontFace:FONT,fontSize:12,color:NAVY,align:'right',fill:{color:WHITE}}; for(var k in (o||{})) op[k]=o[k]; return {text:tx,options:op}};
-    var rows=[[hdr('小カテゴリ'),hdr('SKU数'),hdr('棚の比率'),hdr('市場構成比'),hdr('差（棚−市場）')]];
+    var hdr=function(tx){return {text:tx,options:{bold:true,color:WHITE,fill:{color:NAVY},fontFace:FONT,fontSize:d.hasRows?9.5:11.5,align:'center',valign:'middle'}}};
+    var cell=function(tx,o){var op={fontFace:FONT,fontSize:d.hasRows?10.5:12,color:NAVY,align:'right',valign:'middle',fill:{color:WHITE}}; for(var k in (o||{})) op[k]=o[k]; return {text:tx,options:op}};
+    var R=d.hasRows;
+    var rowWord=function(c){ if(c.rdiff==null) return '—'; var v=r1(c.rdiff); if(Math.abs(v)<0.5) return 'ほぼ同じ'; return Math.abs(v).toFixed(1)+'段 '+(v<0?'少ない':'多い'); };
+    var head=R?[hdr('小カテゴリ'),hdr('SKU数'),hdr('棚の比率'),hdr('市場'),hdr('差(棚−市場)'),hdr('目安の段'),hdr('いまの段'),hdr('目安との差')]
+              :[hdr('小カテゴリ'),hdr('SKU数'),hdr('棚の比率'),hdr('市場構成比'),hdr('差（棚−市場）')];
+    var rows=[head];
     d.cats.forEach(function(c){
       var dv=c.diff==null?'—':signed(c.diff);
       var less=(c.diff!=null&&r1(c.diff)<0);
-      rows.push([cell(c.name,{align:'left',bold:less}),cell(String(c.sku)),cell(pct(c.share)),cell(c.mkt==null?'—':pct(c.mkt)),cell(dv,{bold:c.diff!=null&&r1(c.diff)!==0,color:less?ORG:NAVY})]);
+      var row=[cell(c.name,{align:'left',bold:less}),cell(String(c.sku)),cell(pct(c.share)),cell(c.mkt==null?'—':pct(c.mkt)),cell(dv,{bold:c.diff!=null&&r1(c.diff)!==0,color:less?ORG:NAVY})];
+      if(R){
+        var rl=(c.rdiff!=null && r1(c.rdiff)<=-0.5), rm=(c.rdiff!=null && r1(c.rdiff)>=0.5);
+        row=row.concat([cell(c.need==null?'—':r1(c.need).toFixed(1)),cell(c.have==null?'—':String(r1(c.have))),cell(rowWord(c),{align:'center',bold:rl||rm,color:rl?ORG:NAVY})]);
+      }
+      rows.push(row);
     });
-    rows.push([cell('合計',{align:'left',bold:true}),cell(String(d.total),{bold:true}),cell('100.0%',{bold:true}),cell(d.hasMkt?pct(d.mktSum):'—',{bold:true}),cell('')]);
-    var rh=Math.min(0.38,3.0/rows.length);
-    s1.addTable(rows,{x:0.5,y:1.25,w:6.0,colW:[1.9,0.8,1.0,1.1,1.2],rowH:rh,border:{type:'solid',color:LINE,pt:1}});
+    var sum=[cell('合計',{align:'left',bold:true}),cell(String(d.total),{bold:true}),cell('100.0%',{bold:true}),cell(d.hasMkt?pct(d.mktSum):'—',{bold:true}),cell('')];
+    if(R) sum=sum.concat([cell(''),cell(String(r1(d.rowTotal)),{bold:true}),cell('')]);
+    rows.push(sum);
+    var rh=Math.min(0.38,(R?2.75:3.0)/rows.length), tw=R?8.3:6.0;
+    s1.addTable(rows,{x:0.5,y:1.25,w:tw,colW:R?[1.75,0.65,0.85,0.8,1.15,0.8,0.8,1.5]:[1.9,0.8,1.0,1.1,1.2],rowH:rh,border:{type:'solid',color:LINE,pt:1}});
+    if(R){
+      s1.addText('※目安の段＝市場構成比 × 棚ぜんぶの段数（'+r1(d.rowTotal)+'段）。オレンジ＝目安より少ない（伸びしろの候補）。',{x:0.5,y:4.08,w:tw,h:0.26,fontFace:FONT,fontSize:9.5,color:GRAY});
+    }
     var labels=d.cats.map(function(c){return c.name});
     var series=[{name:'棚（SKU比率）',labels:labels,values:d.cats.map(function(c){return r1(c.share)})}];
     var colors=[NAVY];
     if(d.hasMkt){ series.push({name:'市場（金額構成比）',labels:labels,values:d.cats.map(function(c){return c.mkt==null?0:r1(c.mkt)})}); colors.push(ORG); }
-    s1.addChart(pptx.ChartType.bar,series,{x:6.8,y:1.15,w:6.1,h:3.15,barDir:'col',barGrouping:'clustered',chartColors:colors,showLegend:true,legendPos:'b',legendFontFace:FONT,legendFontSize:11,
-      catAxisLabelFontFace:FONT,catAxisLabelFontSize:11,valAxisLabelFontSize:10,valAxisLabelFormatCode:'0"%"',showValue:true,dataLabelFontSize:9,dataLabelFormatCode:'0.0',valAxisMinVal:0});
+    var cx=R?9.0:6.8, cw2=R?3.9:6.1;
+    s1.addChart(pptx.ChartType.bar,series,{x:cx,y:1.15,w:cw2,h:3.15,barDir:'col',barGrouping:'clustered',chartColors:colors,showLegend:true,legendPos:'b',legendFontFace:FONT,legendFontSize:R?9.5:11,
+      catAxisLabelFontFace:FONT,catAxisLabelFontSize:R?8.5:11,valAxisLabelFontSize:R?9:10,valAxisLabelFormatCode:'0"%"',showValue:true,dataLabelFontSize:R?7.5:9,dataLabelFormatCode:'0.0',valAxisMinVal:0});
     s1.addText('メーカー比率（SKU数の比率）',{x:0.5,y:4.4,w:4.5,h:0.3,fontFace:FONT,fontSize:12.5,bold:true,color:NAVY});
     s1.addText('※バイヤーには見せない。棚の事情を読むための、自分用の数字',{x:5.0,y:4.4,w:7.8,h:0.3,fontFace:FONT,fontSize:10.5,color:GRAY,align:'right'});
     if(d.mks.length){
@@ -826,8 +848,8 @@ textarea{width:100%;min-height:150px;font:inherit;font-size:14px;color:var(--ink
     clearRows();
     $('category').value='袋麺';
     $('mkt1').value='物価高で節約志向。安いものと、少し高くても良いものの使い分け（メリハリ）が見える';
-    $('mktUp').value='5袋、高額個食'; $('mktDown').value='2・3食';
-    [['5袋',16,61.1],['複食（2〜3食）',14,22.2],['個食',5,9.2],['高額個食',3,5.1],['その他',2,2.4]].forEach(function(r){addCat(r[0],r[1],r[2])});
+    $('mktUp').value='5袋、高額個食'; $('mktDown').value='複食（2〜3食）';
+    [['5袋',16,61],['複食（2〜3食）',14,22],['個食',5,9],['高額個食',3,5],['その他',2,2]].forEach(function(r){addCat(r[0],r[1],r[2])});
     [['A社',18],['B社',12],['その他',10]].forEach(function(r){addMk(r[0],r[1])});
     Z.cols=4; Z.rows=6; Z.before={}; Z.custom=[]; H.B=[]; H.A=[]; $('zcols').value=4; $('zrows').value=6;
     var fill=function(m,c,a,b,n){ for(var r=a;r<=b;r++) m[c+','+r]=n; };
