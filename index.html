@@ -49,7 +49,20 @@ input[type=text],input[type=number],select{width:100%;font:inherit;font-size:16p
 input:focus,select:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .rows{display:grid;gap:8px}
 .row{display:grid;gap:6px;align-items:center}
-.row.cat{grid-template-columns:minmax(0,1fr) 72px 84px 36px}
+.catscroll{overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:6px;overscroll-behavior-x:contain}
+.catscroll .rows{width:max-content;min-width:100%}
+.row.cat{grid-template-columns:96px 60px 80px 62px 62px 90px 36px}
+.row.cat.head span{line-height:1.25}
+.row.cat input{padding-left:8px;padding-right:6px}
+.row.cat>*:first-child{position:sticky;left:0;z-index:2}
+.row.cat.head>span:first-child{background:var(--card)}
+.row.cat.data>input:first-child{box-shadow:6px 0 6px -6px rgba(0,0,0,.25)}
+.calc{font-size:13px;text-align:center;padding:10px 4px;border-radius:10px;background:var(--soft);color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap;min-height:42px;display:flex;align-items:center;justify-content:center}
+.calc.less{background:var(--accent);color:var(--accent-ink);font-weight:700}
+.calc.more{background:transparent;border:1.5px solid var(--ink);font-weight:700}
+.calc.eq{color:var(--sub)}
+input.auto{background:var(--soft)}
+.zbtns{display:flex;gap:12px}
 .row.mk{grid-template-columns:minmax(0,1fr) 72px 36px}
 .row.head{font-size:12px;color:var(--sub)}
 .row.head span{padding:0 2px}
@@ -162,9 +175,12 @@ textarea{width:100%;min-height:150px;font:inherit;font-size:14px;color:var(--ink
   <section>
     <h2><span class="step">3</span>小カテゴリと、棚のSKU数 <span class="opt">シートの3</span></h2>
     <p class="hint">数えるのはSKU数（品数）です。市場構成比は、分かるものだけで大丈夫です（空欄でも進めます）。</p>
+    <div class="catscroll">
     <div class="rows" id="cats">
-      <div class="row cat head"><span>小カテゴリ名</span><span>SKU数</span><span>市場構成比%</span><span></span></div>
+      <div class="row cat head"><span>小カテゴリ名</span><span>SKU数</span><span>市場構成比%</span><span>目安の段</span><span>いまの段</span><span>目安との差</span><span></span></div>
     </div>
+    </div>
+    <p class="note">← 表を左にスワイプすると、「目安の段」「いまの段」「目安との差」が見られます。<br>目安の段＝市場構成比 × 棚ぜんぶの段数（本数×段数）。いまの段は、5のゾーニングを塗ると自動で入ります（塗らないときは、手で入れられます）。オレンジ＝目安より少ない（伸びしろの候補）。</p>
     <button type="button" class="add" id="addCat">＋ 小カテゴリを足す</button>
   </section>
 
@@ -186,12 +202,12 @@ textarea{width:100%;min-height:150px;font:inherit;font-size:14px;color:var(--ink
     </div>
     <div class="chips" id="chips" role="radiogroup" aria-label="塗るゾーン"></div>
     <div class="zadd"><input type="text" id="zname" placeholder="ゾーン名を足す（例：高価格、企画枠）" autocomplete="off" aria-label="足すゾーン名"><button type="button" id="zaddBtn">足す</button></div>
-    <div class="ztitle"><span>いまの棚</span><button type="button" id="zclearB">全部消す</button></div>
+    <div class="ztitle"><span>いまの棚</span><span class="zbtns"><button type="button" id="zundoB">1つ戻す</button><button type="button" id="zclearB">全部消す</button></span></div>
     <div class="zhead" id="zheadB"></div>
     <div class="zwrap"><div class="zrows" id="zrowsB"></div><div class="zgrid" id="zgridB" aria-label="いまの棚のゾーニング"></div></div>
     <label class="check"><input type="checkbox" id="zafterOn">提案後の棚もつくる（いまの棚をコピーして直す）</label>
     <div id="zafterWrap" class="hide">
-      <div class="ztitle"><span>提案後の棚</span><button type="button" id="zcopy">いまの棚をコピーし直す</button></div>
+      <div class="ztitle"><span>提案後の棚</span><span class="zbtns"><button type="button" id="zundoA">1つ戻す</button><button type="button" id="zcopy">いまの棚をコピーし直す</button></span></div>
       <div class="zhead" id="zheadA"></div>
       <div class="zwrap"><div class="zrows" id="zrowsA"></div><div class="zgrid" id="zgridA" aria-label="提案後の棚のゾーニング"></div></div>
     </div>
@@ -275,6 +291,9 @@ textarea{width:100%;min-height:150px;font:inherit;font-size:14px;color:var(--ink
       el('input',{type:'text',placeholder:'例：5袋','aria-label':'小カテゴリ名',autocomplete:'off',value:name||''}),
       el('input',{type:'number',inputmode:'numeric',min:'0',step:'1',placeholder:'0','aria-label':'SKU数',value:sku==null?'':sku}),
       el('input',{type:'number',inputmode:'decimal',min:'0',max:'100',step:'0.1',placeholder:'任意','aria-label':'市場構成比（％）',value:mkt==null?'':mkt}),
+      el('div',{class:'calc need','aria-label':'市場構成比からみた段数の目安',text:'—'}),
+      el('input',{type:'number',inputmode:'decimal',min:'0',step:'0.5',placeholder:'段','aria-label':'この企業の棚の、いまの段数',class:'have'}),
+      el('div',{class:'calc dif','aria-label':'目安との差',text:'—'}),
       el('button',{type:'button',class:'del','aria-label':'この行を消す',text:'×'})
     ]));
   }
@@ -307,6 +326,34 @@ textarea{width:100%;min-height:150px;font:inherit;font-size:14px;color:var(--ink
   function zidx(name){ var i=zoneNames().indexOf(name); return (i<0?0:i)%ZCOL.length; }
   function zcolor(name){ return ZCOL[zidx(name)]; }
   function zoningUsed(){ for(var k in Z.before) return true; return false; }
+  /* 3の表：市場構成比からみた段数の目安・いまの段数・その差 */
+  function renderCatCalc(){
+    var used=zoningUsed(), cnt={}, rows=Array.prototype.slice.call(catsEl.querySelectorAll('.row.data')), total=0;
+    if(used){ for(var k in Z.before){ cnt[Z.before[k]]=(cnt[Z.before[k]]||0)+1; } total=Z.cols*Z.rows; }
+    else rows.forEach(function(r){ var v=num(r.querySelector('.have').value); if(v!=null) total+=v; });
+    rows.forEach(function(r){
+      var i=r.querySelectorAll('input'), name=i[0].value.trim(), mkt=num(i[2].value), inp=r.querySelector('.have');
+      var need=r.querySelector('.need'), df=r.querySelector('.dif'), have=null;
+      if(used){ have=name?(cnt[name]||0):null; inp.value=(have==null?'':have); inp.readOnly=true; inp.classList.add('auto'); }
+      else { inp.readOnly=false; inp.classList.remove('auto'); have=num(inp.value); }
+      var nd=(mkt!=null && total>0)?mkt/100*total:null;
+      need.textContent=(nd==null)?'—':r1(nd).toFixed(1)+'段';
+      df.className='calc dif';
+      if(nd==null || have==null){ df.textContent='—'; return; }
+      var d=r1(have-nd);
+      if(Math.abs(d)<0.5){ df.textContent='ほぼ同じ'; df.classList.add('eq'); }
+      else if(d<0){ df.textContent=Math.abs(d).toFixed(1)+'段 少ない'; df.classList.add('less'); }
+      else { df.textContent=d.toFixed(1)+'段 多い'; df.classList.add('more'); }
+    });
+  }
+  /* ゾーニングの「1つ戻す」 */
+  var H={B:[],A:[]};
+  function snap(k){ var m=(k==='B')?Z.before:(Z.after||{}), c={}; for(var x in m) c[x]=m[x]; H[k].push(c); if(H[k].length>60) H[k].shift(); }
+  function undo(k){
+    if(!H[k].length){ say('これより前には戻せません。'); return; }
+    var c=H[k].pop(); if(k==='B') Z.before=c; else Z.after=c;
+    renderZoning(false); render(); say('1つ戻しました。');
+  }
 
   function read(){
     var cats=[], mks=[];
@@ -403,7 +450,7 @@ textarea{width:100%;min-height:150px;font:inherit;font-size:14px;color:var(--ink
     if(Z.after) paintGrid($('zgridA'),Z.after);
   }
   function trimMap(m){ for(var k in m){ var p=k.split(','); if(+p[0]>=Z.cols || +p[1]>=Z.rows) delete m[k]; } }
-  function bindGrid(gridEl,getMap){
+  function bindGrid(gridEl,getMap,hk){
     var painting=false, last=null;
     function at(e){
       var t=document.elementFromPoint(e.clientX,e.clientY);
@@ -418,9 +465,9 @@ textarea{width:100%;min-height:150px;font:inherit;font-size:14px;color:var(--ink
       last=[c,r];
       paintGrid(gridEl,m);
     }
-    gridEl.addEventListener('pointerdown',function(e){ painting=true; last=null; try{gridEl.setPointerCapture(e.pointerId)}catch(_){}; at(e); e.preventDefault(); });
+    gridEl.addEventListener('pointerdown',function(e){ snap(hk); painting=true; last=null; try{gridEl.setPointerCapture(e.pointerId)}catch(_){}; at(e); e.preventDefault(); });
     gridEl.addEventListener('pointermove',function(e){ if(painting) at(e); });
-    var stop=function(){ if(painting){ painting=false; say(''); } };
+    var stop=function(){ if(painting){ painting=false; say(''); renderCatCalc(); } };
     gridEl.addEventListener('pointerup',stop); gridEl.addEventListener('pointercancel',stop);
   }
 
@@ -429,6 +476,7 @@ textarea{width:100%;min-height:150px;font:inherit;font-size:14px;color:var(--ink
   function render(){
     var d=read(); refreshTarget(d); d.target=$('target').value;
     renderChips(); paintGrid($('zgridB'),Z.before); if(Z.after) paintGrid($('zgridA'),Z.after);
+    renderCatCalc();
     var pv=$('preview');
     if(!d.cats.length){ pv.classList.add('hide'); $('resultHint').classList.remove('hide'); return d; }
     pv.classList.remove('hide'); $('resultHint').classList.add('hide');
@@ -749,7 +797,7 @@ textarea{width:100%;min-height:150px;font:inherit;font-size:14px;color:var(--ink
     Z.cols=clampInt($('zcols').value,1,12,Z.cols); Z.rows=clampInt($('zrows').value,1,10,Z.rows);
     $('zcols').value=Z.cols; $('zrows').value=Z.rows;
     trimMap(Z.before); if(Z.after) trimMap(Z.after);
-    renderZoning(true);
+    renderZoning(true); renderCatCalc();
   }
   $('zcols').addEventListener('change',resize); $('zrows').addEventListener('change',resize);
   function addZone(){
@@ -761,12 +809,14 @@ textarea{width:100%;min-height:150px;font:inherit;font-size:14px;color:var(--ink
   $('chips').addEventListener('click',pickChip);
   $('zaddBtn').addEventListener('click',addZone);
   $('zname').addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); addZone(); } });
-  $('zclearB').addEventListener('click',function(){ Z.before={}; renderZoning(false); });
+  $('zclearB').addEventListener('click',function(){ snap('B'); Z.before={}; renderZoning(false); render(); });
+  $('zundoB').addEventListener('click',function(){ undo('B'); });
+  $('zundoA').addEventListener('click',function(){ undo('A'); });
   function copyAfter(){ Z.after={}; for(var k in Z.before) Z.after[k]=Z.before[k]; }
-  $('zafterOn').addEventListener('change',function(e){ if(e.target.checked) copyAfter(); else Z.after=null; renderZoning(false); });
-  $('zcopy').addEventListener('click',function(){ copyAfter(); renderZoning(false); });
-  bindGrid($('zgridB'),function(){return Z.before});
-  bindGrid($('zgridA'),function(){ if(!Z.after) Z.after={}; return Z.after; });
+  $('zafterOn').addEventListener('change',function(e){ H.A=[]; if(e.target.checked) copyAfter(); else Z.after=null; renderZoning(false); });
+  $('zcopy').addEventListener('click',function(){ snap('A'); copyAfter(); renderZoning(false); });
+  bindGrid($('zgridB'),function(){return Z.before},'B');
+  bindGrid($('zgridA'),function(){ if(!Z.after) Z.after={}; return Z.after; },'A');
 
   $('sample').addEventListener('click',function(){
     clearRows();
